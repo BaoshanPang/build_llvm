@@ -25,7 +25,7 @@ function build_llvm() {
     cd $CWD
     source_files=${CWD}/$1
     #rm -rf ./build
-    if [ $UPDATE ] || [ ! -d build ] ;then
+    if [[ ${UPDATE} == true ]] || [ ! -d build ] ;then
 	mkdir -p ./build
 	cd ./build
 	# does not have cstdint
@@ -142,8 +142,8 @@ function main() {
     if [[ ${USE_LATEST} == true ]]; then
         if [[ ! -d llvm ]]; then
             setup
-        elif [[ ${UPDATE} == true ]]
-            update
+        else 
+	    $UPDATE && update
         fi
         build_llvm llvm
     else
