@@ -10,7 +10,10 @@ CWD=$(pwd)
 # lldb has been frequently not compiling, so I've given up enabling it by default
 # https://llvm.org/svn/llvm-project/lldb/trunk/docs/code-signing.txt
 ENABLE_LLDB=false
-USE_LATEST=false
+USE_LATEST=true
+BTYPE=Debug
+ASSERT=Off
+UPDATE=false
 LLVM_RELEASE=3.8.0
 
 function abort { >&2 echo -e "\033[1m\033[31m$1\033[0m"; exit 1; }
@@ -22,36 +25,40 @@ function build_llvm() {
     cd $CWD
     source_files=${CWD}/$1
     #rm -rf ./build
-    mkdir -p ./build
-    cd ./build
-    # does not have cstdint
-    #-DC_INCLUDE_DIRS=:/usr/include/c++/4.2.1/ \
-    # fail
-    # -DC_INCLUDE_DIRS=:../../../../../Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1/ \
-    # -DDEFAULT_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk \
-    # NOTE: the C_INCLUDE_DIRS are appended to the DEFAULT_SYSROOT
-    # the DEFAULT_SYSROOT should be:
-    # Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk
-    # but then it is hard to append and have found the C includes in /usr/include
-    # and the C++ includes in /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1/
-    # so we fake the sysroot to be / to make it easy to append those specific paths
-    cmake $source_files -G Ninja -DCMAKE_INSTALL_PREFIX=${PREFIX} \
-     -DCLANG_DEFAULT_CXX_STDLIB=libc++ \
-     -DC_INCLUDE_DIRS=:/usr/include:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1/ \
-     -DDEFAULT_SYSROOT=/ \
-     -DCMAKE_BUILD_TYPE=Release \
-     -DLLVM_ENABLE_ASSERTIONS=Off \
-     -DCLANG_VENDOR=mapbox/springmeyer \
-     -DCLANG_REPOSITORY_STRING=https://github.com/springmeyer/build-llvm \
-     -DCLANG_APPEND_VC_REV=$(git -C ../llvm/tools/clang/ rev-list --max-count=1 HEAD) \
-     -DCLANG_VENDOR_UTI=org.mapbox.clang \
-     -DCMAKE_EXE_LINKER_FLAGS="${LDFLAGS}" \
-     -DCMAKE_CXX_FLAGS_RELEASE="${CXXFLAGS}" \
-     -DLLVM_OPTIMIZED_TABLEGEN=ON
+    if [ $UPDATE ] || [ ! -d build ] ;then
+	mkdir -p ./build
+	cd ./build
+	# does not have cstdint
+	#-DC_INCLUDE_DIRS=:/usr/include/c++/4.2.1/ \
+	# fail
+	# -DC_INCLUDE_DIRS=:../../../../../Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1/ \
+	# -DDEFAULT_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk \
+	# NOTE: the C_INCLUDE_DIRS are appended to the DEFAULT_SYSROOT
+	# the DEFAULT_SYSROOT should be:
+	# Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk
+	# but then it is hard to append and have found the C includes in /usr/include
+	# and the C++ includes in /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1/
+	# so we fake the sysroot to be / to make it easy to append those specific paths
+	cmake $source_files -G Ninja -DCMAKE_INSTALL_PREFIX=${PREFIX} \
+	      -DCLANG_DEFAULT_CXX_STDLIB=libc++ \
+	      -DC_INCLUDE_DIRS=:/usr/include:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1/ \
+	      -DDEFAULT_SYSROOT=/ \
+	      -DCMAKE_BUILD_TYPE=${BTYPE} \
+	      -DLLVM_ENABLE_ASSERTIONS=${ASSERT} \
+	      -DCLANG_VENDOR=mapbox/springmeyer \
+	      -DCLANG_REPOSITORY_STRING=https://github.com/springmeyer/build-llvm \
+	      -DCLANG_APPEND_VC_REV=$(git -C ../llvm/tools/clang/ rev-list --max-count=1 HEAD) \
+	      -DCLANG_VENDOR_UTI=org.mapbox.clang \
+	      -DCMAKE_EXE_LINKER_FLAGS="${LDFLAGS}" \
+	      -DCMAKE_CXX_FLAGS_RELEASE="${CXXFLAGS}" \
+	      -DLLVM_OPTIMIZED_TABLEGEN=ON
+    else
+	cd ./build	
+    fi
     ninja -j${JOBS} -k5
     ninja install -k5
     # manual install of tools that don't get installed right
-    cp build/Release/bin/include-what-you-use ${PREFIX}/bin
+    # cp build/Release/bin/include-what-you-use ${PREFIX}/bin
 }
 
 function setup() {
@@ -135,7 +142,7 @@ function main() {
     if [[ ${USE_LATEST} == true ]]; then
         if [[ ! -d llvm ]]; then
             setup
-        else
+        elif [[ ${UPDATE} == true ]]
             update
         fi
         build_llvm llvm
